@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/89/three.min.js"></script>
+  <script src="src/Detector.js"></script>
+  <script src="src/MinHeap.js"></script>
+  <script src="src/Maze.js"></script>
+  <script src="src/Util.js"></script>
+  <script src="src/PointerLockControls.js"></script>
+  <style type="text/css">
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+    }
+
+    body {
+      background-color: #ffffff;
+      margin: 0;
+      overflow: hidden;
+      font-family: arial;
+    }
+
+    hr {
+      border: 1px solid rgba(255, 255, 255, 0.25);
+    }
+
+    #inventory {
+      font-size: 12px;
+      color: #ddd;
+      position: absolute;
+      left: 20px;
+      bottom: 20px;
+      width: 250px;
+      height: auto;
+      padding: 10px;
+      border-radius: 5px;
+      background-color: rgba(255, 255, 255, 0.15);
+    }
+
+    #stats {
+      font-size: 12px;
+      position: absolute;
+      right: 20px;
+      top: 20px;
+      width: 200px;
+      height: auto;
+      padding: 10px;
+      border-radius: 5px;
+      background-color: rgba(255, 255, 255, 0.15);
+    }
+
+    #blocker {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.5);
+    }
+
+    #instructions {
+      width: 100%;
+      height: 100%;
+      display: -webkit-box;
+      display: -moz-box;
+      display: box;
+      -webkit-box-orient: horizontal;
+      -moz-box-orient: horizontal;
+      box-orient: horizontal;
+      -webkit-box-pack: center;
+      -moz-box-pack: center;
+      box-pack: center;
+      -webkit-box-align: center;
+      -moz-box-align: center;
+      box-align: center;
+      color: #ffffff;
+      text-align: center;
+      cursor: pointer;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="inventory"></div>
+  <div id="stats"></div>
+  <div id="blocker">
+
+    <div id="instructions">
+      <span style="font-size:40px">Mazecraft</span>
+      <br />
+      <br />
+      <b>W, A, S, D</b> = Move,
+      <br />
+      <b>SPACE</b> = Jump
+      <br />
+      <b>T</b> = Teleport!
+      <br />
+      <b>G</b> = Super Leap!
+      <br />
+      <b>F</b> = Super Flashlight!
+      <br />
+      <b>R</b> = Burst of Speed!
+      <br />
+      <br /> Try to find the portal that marks the EXIT!
+    </div>
+
+  </div>
+  <div id="container"></div>
+
+  <script src="src/script.js"></script>
+</body>
+
+</html>
