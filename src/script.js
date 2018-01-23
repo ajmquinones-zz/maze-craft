@@ -88,7 +88,10 @@ let prevTime = performance.now();
 let velocity = new THREE.Vector3();
 let direction = new THREE.Vector3();
 let raycaster;
+
+let faceLight;
 let lamp;
+let lampTarget;
 let minHeight = 0;
 let theta = 0;
 
@@ -116,6 +119,8 @@ function init() {
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x02050e);
   scene.fog = new THREE.FogExp2(0x02050e, 0.00395);
+
+  scene.add(camera);
 
   audioListener = new THREE.AudioListener();
   camera.add(audioListener);
@@ -256,9 +261,6 @@ function init() {
   let nxGeometry = new THREE.PlaneGeometry(100, 100);
   nxGeometry.faces[0].vertexColors = [light, shadow, light];
   nxGeometry.faces[1].vertexColors = [shadow, shadow, light];
-  // nxGeometry.faceVertexUvs[0][0][0].y = 1;
-  // nxGeometry.faceVertexUvs[0][0][2].y = 1;
-  // nxGeometry.faceVertexUvs[0][1][2].y = 1;
   nxGeometry.rotateY(- Math.PI / 2);
   nxGeometry.translate(- 50, 0, 0);
 
@@ -390,11 +392,15 @@ function init() {
   }
 
   geometries.forEach((geometry, index) => {
-    let mesh = new THREE.Mesh(geometry, new THREE.MeshLambertMaterial({ map: textures[index], vertexColors: THREE.VertexColors }));
+    let mesh = new THREE.Mesh(geometry, new THREE.MeshLambertMaterial({
+      map: textures[index],
+      shading: THREE.FlatShading,
+      vertexColors: THREE.VertexColors, dithering: true
+    }));
     scene.add(mesh);
   });
 
-  let ambientLight = new THREE.AmbientLight(0x666666);
+  let ambientLight = new THREE.AmbientLight(0xcccccc, 0.15);
   scene.add(ambientLight);
 
 
@@ -407,12 +413,31 @@ function init() {
   // )
   // scene.add(finishLight);
 
-  lamp = new THREE.PointLight(0xffffff, 2);
-  scene.add(lamp);
+  lamp = new THREE.SpotLight(0xffffff);
+  lamp.penumbra = 0.2;
+  lamp.distance = 200;
+  lamp.castShadow = true;
+  lamp.shadow.mapSize.width = 1024;
+  lamp.shadow.mapSize.height = 1024;
+  lamp.shadow.camera.near = 0.5;
+  lamp.shadow.camera.far = 500;
+  lampTarget = new THREE.Object3D();
+
+  camera.add(lamp);
+  camera.add(lampTarget);
+  lamp.position.set(0, 0, -30);
+  lampTarget.position.set(0, 0, -31);
+  lamp.target = lampTarget;
 
   renderer = new THREE.WebGLRenderer();
   renderer.setPixelRatio(window.devicePixelRatio);
   renderer.setSize(window.innerWidth, window.innerHeight);
+
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+  renderer.gammaInput = true;
+  renderer.gammaOutput = true;
 
   teleport();
 
@@ -509,12 +534,6 @@ function updateControls() {
       canJump = true;
     }
 
-    lamp.position.set(
-      controls.getObject().position.x,
-      controls.getObject().position.y,
-      controls.getObject().position.z
-    );
-
     prevTime = time;
   }
 }
@@ -559,14 +578,14 @@ function render() {
   }
 
   if (battery > 0) {
-    lamp.intensity = 6;
+    lamp.intensity = 15;
     lamp.decay = 0;
 
     inventoryText += `BATTERY: <b>${Math.round(battery / 2.5)}%</b><br>`;
     battery -= 0.5;
   } else {
-    lamp.intensity = 0.25 + ((Math.sin(theta) + 1) / 2) * 3;
-    lamp.decay = 2;
+    lamp.intensity = 0 + ((Math.sin(theta) + 1) / 2) * 4;
+    lamp.decay = 1;
   }
 
   inventory.innerHTML = inventoryText;
