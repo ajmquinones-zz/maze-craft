@@ -53,6 +53,29 @@ let renderer;
 let maze;
 let mazeMatrix;
 let objects = [];
+let textureLoader = new THREE.TextureLoader();
+let textures = [
+  'textures/environment/256x256/0000.png',
+  'textures/environment/256x256/0100.png',
+  'textures/environment/256x256/0160.png',
+  'textures/environment/256x256/0200.png',
+  'textures/environment/256x256/0250.png',
+  'textures/environment/256x256/0270.png',
+  'textures/environment/256x256/0300.png',
+  'textures/environment/256x256/0400.png',
+  'textures/environment/256x256/0500.png',
+  'textures/environment/256x256/0600.png',
+].map(asset => {
+  let texture = new THREE.TextureLoader().load(asset);
+  texture.magFilter = THREE.NearestFilter;
+  texture.minFilter = THREE.LinearMipMapLinearFilter;
+  texture._url = asset;
+  return texture;
+});
+
+let audioListener;
+let ambientSound;
+let audioLoader = new THREE.AudioLoader();
 
 let clock = new THREE.Clock();
 let moveForward = false;
@@ -66,6 +89,7 @@ let velocity = new THREE.Vector3();
 let direction = new THREE.Vector3();
 let raycaster;
 let lamp;
+let minHeight = 0;
 let theta = 0;
 
 let superJump = 1000;
@@ -87,16 +111,42 @@ function init() {
   maze = new Maze((WORLD_WIDTH / 2 | 0) - 1, (WORLD_DEPTH / 2 | 0) - 1)
   mazeMatrix = maze.matrix();
 
-  camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 1000);
+  camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 1, 1000);
+  camera.zoom = 2;
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x02050e);
   scene.fog = new THREE.FogExp2(0x02050e, 0.00395);
+
+  audioListener = new THREE.AudioListener();
+  camera.add(audioListener);
+
+  ambientSound = new THREE.Audio(audioListener);
+  scene.add(ambientSound);
+
+  audioLoader.load(
+    'audio/darkshadow.mp3',
+    // onLoad callback
+    audioBuffer => {
+      ambientSound.setBuffer(audioBuffer);
+      ambientSound.setLoop(true);
+      ambientSound.play();
+    },
+
+    // onProgress callback
+    xhr => {
+      console.log((xhr.loaded / xhr.total * 100) + '% loaded');
+    },
+
+    // onError callback
+    err => {
+      console.log('An error happened');
+    }
+  )
 
   controls = new THREE.PointerLockControls(camera);
   scene.add(controls.getObject());
 
   let onKeyDown = event => {
-    console.log(event.keyCode);
     switch (event.keyCode) {
       case 38: // up
       case 87: // w
@@ -117,8 +167,8 @@ function init() {
         if (canJump === true) {
           velocity.y += 350;
           canJump = false;
-          break;
         }
+        break;
       case 49: case 84:
         if (superBlink >= 1000) {
           teleport();
@@ -191,42 +241,36 @@ function init() {
   // scene.add(floor);
 
   const light = new THREE.Color(0xffffff);
-  const shadow = new THREE.Color(0x505050);
+  const shadow = new THREE.Color(0x303030);
   const matrix = new THREE.Matrix4();
 
   let pxGeometry = new THREE.PlaneGeometry(100, 100);
   pxGeometry.faces[0].vertexColors = [light, shadow, light];
   pxGeometry.faces[1].vertexColors = [shadow, shadow, light];
-  pxGeometry.faceVertexUvs[0][0][0].y = 0.5;
-  pxGeometry.faceVertexUvs[0][0][2].y = 0.5;
-  pxGeometry.faceVertexUvs[0][1][2].y = 0.5;
+  // pxGeometry.faceVertexUvs[0][0][0].y = 1;
+  // pxGeometry.faceVertexUvs[0][0][2].y = 1;
+  // pxGeometry.faceVertexUvs[0][1][2].y = 1;
   pxGeometry.rotateY(Math.PI / 2);
   pxGeometry.translate(50, 0, 0);
 
   let nxGeometry = new THREE.PlaneGeometry(100, 100);
   nxGeometry.faces[0].vertexColors = [light, shadow, light];
   nxGeometry.faces[1].vertexColors = [shadow, shadow, light];
-  nxGeometry.faceVertexUvs[0][0][0].y = 0.5;
-  nxGeometry.faceVertexUvs[0][0][2].y = 0.5;
-  nxGeometry.faceVertexUvs[0][1][2].y = 0.5;
+  // nxGeometry.faceVertexUvs[0][0][0].y = 1;
+  // nxGeometry.faceVertexUvs[0][0][2].y = 1;
+  // nxGeometry.faceVertexUvs[0][1][2].y = 1;
   nxGeometry.rotateY(- Math.PI / 2);
   nxGeometry.translate(- 50, 0, 0);
 
   let pyGeometry = new THREE.PlaneGeometry(100, 100);
   pyGeometry.faces[0].vertexColors = [light, light, light];
   pyGeometry.faces[1].vertexColors = [light, light, light];
-  pyGeometry.faceVertexUvs[0][0][1].y = 0.5;
-  pyGeometry.faceVertexUvs[0][1][0].y = 0.5;
-  pyGeometry.faceVertexUvs[0][1][1].y = 0.5;
   pyGeometry.rotateX(- Math.PI / 2);
   pyGeometry.translate(0, 50, 0);
 
   let py2Geometry = new THREE.PlaneGeometry(100, 100);
   py2Geometry.faces[0].vertexColors = [light, light, light];
   py2Geometry.faces[1].vertexColors = [light, light, light];
-  py2Geometry.faceVertexUvs[0][0][1].y = 0.5;
-  py2Geometry.faceVertexUvs[0][1][0].y = 0.5;
-  py2Geometry.faceVertexUvs[0][1][1].y = 0.5;
   py2Geometry.rotateX(- Math.PI / 2);
   py2Geometry.rotateY(Math.PI / 2);
   py2Geometry.translate(0, 50, 0);
@@ -234,28 +278,18 @@ function init() {
   let pzGeometry = new THREE.PlaneGeometry(100, 100);
   pzGeometry.faces[0].vertexColors = [light, shadow, light];
   pzGeometry.faces[1].vertexColors = [shadow, shadow, light];
-  pzGeometry.faceVertexUvs[0][0][0].y = 0.5;
-  pzGeometry.faceVertexUvs[0][0][2].y = 0.5;
-  pzGeometry.faceVertexUvs[0][1][2].y = 0.5;
   pzGeometry.translate(0, 0, 50);
 
   let nzGeometry = new THREE.PlaneGeometry(100, 100);
   nzGeometry.faces[0].vertexColors = [light, shadow, light];
   nzGeometry.faces[1].vertexColors = [shadow, shadow, light];
-  nzGeometry.faceVertexUvs[0][0][0].y = 0.5;
-  nzGeometry.faceVertexUvs[0][0][2].y = 0.5;
-  nzGeometry.faceVertexUvs[0][1][2].y = 0.5;
   nzGeometry.rotateY(Math.PI);
   nzGeometry.translate(0, 0, - 50);
 
-  let geometries = [
-    new THREE.Geometry(),
-    new THREE.Geometry(),
-    new THREE.Geometry(),
-    new THREE.Geometry(),
-    new THREE.Geometry(),
-    new THREE.Geometry()
-  ];
+  let geometries = textures.map(() => {
+    return new THREE.Geometry();
+  });
+
   let dummy = new THREE.Mesh();
   let cubeGeometry = new THREE.CubeGeometry(100, 100, 100);
 
@@ -273,25 +307,16 @@ function init() {
       let finish = maze.compass();
       let dz = Math.abs(z - finish.z);
       let dx = Math.abs(x - finish.x);
-      let dist = Math.round(Math.sqrt(dz * dz + dx * dx));
-      let geomIndex = Math.floor(mapRange(dist, 0, 300, 1, 6));
+      let dist = Math.sqrt(dz * dz + dx * dx);
+      let geomIndex = Math.round(mapRange(dist, 0, 280, 1, geometries.length - 1));
 
-      if (dist < 2) {
+      if (dist <= 1) {
         geomIndex = 0;
       }
 
-      if (geomIndex > 5) {
-        geomIndex = 5;
+      if (geomIndex > geometries.length - 1) {
+        geomIndex = geometries.length - 1;
       }
-
-      // let material = new THREE.MeshLambertMaterial({ map: textures[0] });
-      // let cube = new THREE.Mesh(cubeGeometry.clone(), material);
-      // cube.position.set(
-      //   x * 100 - WORLD_HALF_WIDTH * 100,
-      //   h * 100,
-      //   z * 100 - WORLD_HALF_DEPTH * 100
-      // );
-      // scene.add(cube);
 
       let px = getY(x + 1, z);
       let nx = getY(x - 1, z);
@@ -364,32 +389,10 @@ function init() {
     }
   }
 
-  let textureLoader = new THREE.TextureLoader();
-  let textures = [
-    'textures/minecraft/beacon.png',
-    'textures/minecraft/atlas.png',
-    'textures/minecraft/cobblestone.png',
-    'textures/minecraft/mycelium.png',
-    'textures/minecraft/coal.png',
-    'textures/minecraft/nether_brick.png',
-  ].map(asset => {
-    let texture = new THREE.TextureLoader().load(asset);
-    texture.magFilter = THREE.NearestFilter;
-    texture.minFilter = THREE.LinearMipMapLinearFilter;
-    return texture;
-  })
-
   geometries.forEach((geometry, index) => {
     let mesh = new THREE.Mesh(geometry, new THREE.MeshLambertMaterial({ map: textures[index], vertexColors: THREE.VertexColors }));
     scene.add(mesh);
   });
-
-  // let texture = new THREE.TextureLoader().load('textures/minecraft/nether_brick.png');
-  // texture.magFilter = THREE.NearestFilter;
-  // texture.minFilter = THREE.LinearMipMapLinearFilter;
-
-  // let mesh = new THREE.Mesh(geometry, new THREE.MeshLambertMaterial({ map: texture, vertexColors: THREE.VertexColors }));
-  // scene.add(mesh);
 
   let ambientLight = new THREE.AmbientLight(0x666666);
   scene.add(ambientLight);
@@ -404,15 +407,7 @@ function init() {
   // )
   // scene.add(finishLight);
 
-  lamp = new THREE.PointLight(0xFFFFFF, 2);
-  // lamp.castShadow = false;
-  // lamp.angle = 0.3;
-  // lamp.penumbra = 0;
-  // lamp.decay = 2;
-  // lamp.distance = 50;
-  // lamp.shadow.mapSize.width = 20;
-  // lamp.shadow.mapSize.height = 20;
-
+  lamp = new THREE.PointLight(0xffffff, 2);
   scene.add(lamp);
 
   renderer = new THREE.WebGLRenderer();
@@ -434,7 +429,6 @@ function getY(x, z) {
 function animate() {
   requestAnimationFrame(animate);
   render();
-  // stats.update();
 }
 
 function updateControls() {
@@ -467,7 +461,9 @@ function updateControls() {
     let dx = Math.round((oldX + WORLD_HALF_WIDTH * 100) / 100);
     let dz = Math.round((oldZ + WORLD_HALF_DEPTH * 100) / 100);
     let dirs = mazeMatrix[dz][dx];
-    stats.innerHTML = `x: ${oldX} <br>y:${oldY}<br>z:${oldZ}`;
+    stats.innerHTML =
+      `x: ${oldX} <br>y:${oldY}<br>z:${oldZ}<br><br>` +
+      `dx: ${dx} <br>dz:${dz}<br>`;
 
     let boost = 1;
     if (gas > 0) {
@@ -507,15 +503,15 @@ function updateControls() {
       controls.getObject().position.x = oldX;
     }
 
-    if (controls.getObject().position.y < 10) {
+    if (controls.getObject().position.y < minHeight) {
       velocity.y = 0;
-      controls.getObject().position.y = 10;
+      controls.getObject().position.y = minHeight;
       canJump = true;
     }
 
     lamp.position.set(
       controls.getObject().position.x,
-      controls.getObject().position.y + 20,
+      controls.getObject().position.y,
       controls.getObject().position.z
     );
 
@@ -531,7 +527,7 @@ function isOpen(x, z) {
 }
 
 function render() {
-  theta += 0.025;
+  theta += 0.05;
   updateControls();
 
   if (superSpeed < 1000) {
@@ -569,7 +565,7 @@ function render() {
     inventoryText += `BATTERY: <b>${Math.round(battery / 2.5)}%</b><br>`;
     battery -= 0.5;
   } else {
-    lamp.intensity = 0.25 + ((Math.sin(theta) + 1) / 2) * 1;
+    lamp.intensity = 0.25 + ((Math.sin(theta) + 1) / 2) * 3;
     lamp.decay = 2;
   }
 
@@ -577,10 +573,15 @@ function render() {
   renderer.render(scene, camera);
 }
 
-function teleport() {
+function teleport(i, j) {
   // Find a random location as initial starting point
-  let i, j;
-  while (!mazeMatrix[j = Math.round(Math.random() * WORLD_DEPTH)][i = Math.round(Math.random() * WORLD_WIDTH)]);
+  i = i || 0;
+  j = j || 0;
+  while (!mazeMatrix[j][i]) {
+    i = Math.round(Math.random() * (WORLD_WIDTH - 1));
+    j = Math.round(Math.random() * (WORLD_DEPTH - 1));
+  };
+
   controls.getObject().position.x = (i * 100) - WORLD_HALF_WIDTH * 100;
   controls.getObject().position.z = (j * 100) - WORLD_HALF_DEPTH * 100;
 }
