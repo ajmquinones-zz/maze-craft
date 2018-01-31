@@ -12,6 +12,8 @@ class Maze {
     this.data = [];
     this.frontier = new MinHeap((a, b) => a.weight - b.weight);
 
+    this._matrix = null;
+
     this._init();
     this._generate();
   }
@@ -20,6 +22,16 @@ class Maze {
     const x = (this.start % this.width) * 2 + 1;
     const z = (this.start / this.width | 0) * 2 + 1;
     return { x, z };
+  }
+
+  globalCompass() {
+    const localWidth = maze.localWidth();
+    const localDepth = maze.localDepth();
+    const { x, z } = maze.compass();
+    return {
+      x: x * 100 - localWidth / 2 * 100,
+      z: z * 100 - localDepth / 2 * 100
+    };
   }
 
   debug() {
@@ -34,7 +46,23 @@ class Maze {
     return data;
   }
 
+  localWidth() {
+    const mat = this.matrix();
+    return mat[0].length;
+  }
+
+  localDepth() {
+    const mat = this.matrix();
+    return mat.length;
+  }
+
   matrix() {
+
+    if (this._matrix !== null) {
+      return this._matrix;
+    }
+
+
     let data = [];
     for (let z = 0; z < this.depth * 2 + 1; z++) {
       data[z] = [];
@@ -56,7 +84,8 @@ class Maze {
       if (dirs & E) data[y][x + 1] |= E;
     });
 
-    return data;
+    this._matrix = data;
+    return this._matrix;
   }
 
   _init() {

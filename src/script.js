@@ -3,6 +3,8 @@ if (!Detector.webgl) {
   document.getElementById('container').innerHTML = "";
 }
 
+let godMode = false;
+let minimap;
 let inventory = document.getElementById('inventory');
 let stats = document.getElementById('stats');
 let blocker = document.getElementById('blocker');
@@ -65,8 +67,8 @@ let textures = [
   'textures/environment/256x256/0400.png',
   'textures/environment/256x256/0500.png',
   'textures/environment/256x256/0600.png',
-].map(asset => {
-  let texture = new THREE.TextureLoader().load(asset);
+].map((asset, index) => {
+  let texture = textureLoader.load(asset);
   texture.magFilter = THREE.NearestFilter;
   texture.minFilter = THREE.LinearMipMapLinearFilter;
   texture._url = asset;
@@ -90,10 +92,13 @@ let direction = new THREE.Vector3();
 let raycaster;
 
 let faceLight;
+let finishLight;
 let lamp;
 let lampTarget;
 let minHeight = 0;
 let theta = 0;
+
+let objective;
 
 let superJump = 1000;
 let superFlash = 1000;
@@ -107,12 +112,15 @@ const WORLD_DEPTH = 200;
 const WORLD_HALF_WIDTH = WORLD_WIDTH / 2;
 const WORLD_HALF_DEPTH = WORLD_DEPTH / 2;
 
+
 function init() {
   container = document.getElementById('container');
 
   // Generate maze
   maze = new Maze((WORLD_WIDTH / 2 | 0) - 1, (WORLD_DEPTH / 2 | 0) - 1)
   mazeMatrix = maze.matrix();
+
+  minimap = new Minimap(maze, document.getElementById('minimap-canvas'));
 
   camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 1, 1000);
   camera.zoom = 2;
@@ -177,25 +185,25 @@ function init() {
       case 49: case 84:
         if (superBlink >= 1000) {
           teleport();
-          superBlink = 0;
+          if (!godMode) { superBlink = 0; }
         }
         break;
       case 50: case 71:
         if (canJump === true && superJump >= 1000) {
           velocity.y += 1000;
-          superJump = 0;
+          if (!godMode) { superJump = 0; }
           canJump = false;
         }
         break;
       case 51: case 70:
         if (superFlash >= 1000) {
-          superFlash = 0;
+          if (!godMode) { superFlash = 0; }
           battery = 250;
         }
         break;
       case 52: case 82:
         if (superSpeed >= 1000) {
-          superSpeed = 0;
+          if (!godMode) { superSpeed = 0; }
           gas = 250;
         }
         break;
@@ -295,16 +303,10 @@ function init() {
   let dummy = new THREE.Mesh();
   let cubeGeometry = new THREE.CubeGeometry(100, 100, 100);
 
-  for (let z = 0; z < WORLD_WIDTH; z++) {
-    for (let x = 0; x < WORLD_DEPTH; x++) {
-
-      h = getY(x, z);
-
-      matrix.makeTranslation(
-        x * 100 - WORLD_HALF_WIDTH * 100,
-        h * 100,
-        z * 100 - WORLD_HALF_DEPTH * 100
-      );
+  const localDepth = maze.localDepth();
+  const localWidth = maze.localWidth();
+  for (let z = 0; z < localDepth; z++) {
+    for (let x = 0; x < localWidth; x++) {
 
       let finish = maze.compass();
       let dz = Math.abs(z - finish.z);
@@ -312,9 +314,16 @@ function init() {
       let dist = Math.sqrt(dz * dz + dx * dx);
       let geomIndex = Math.round(mapRange(dist, 0, 280, 1, geometries.length - 1));
 
-      if (dist <= 1) {
-        geomIndex = 0;
-      }
+      h = getY(x, z);
+      // if (finish.z === z && finish.x === x) {
+      //   geomIndex = 0;
+      // }
+
+      matrix.makeTranslation(
+        x * 100 - localWidth / 2 * 100,
+        h * 100,
+        z * 100 - localDepth / 2 * 100
+      );
 
       if (geomIndex > geometries.length - 1) {
         geomIndex = geometries.length - 1;
@@ -394,15 +403,39 @@ function init() {
   geometries.forEach((geometry, index) => {
     let mesh = new THREE.Mesh(geometry, new THREE.MeshLambertMaterial({
       map: textures[index],
-      shading: THREE.FlatShading,
+      flatShading: true,
       vertexColors: THREE.VertexColors, dithering: true
     }));
     scene.add(mesh);
   });
 
+
+  const objTexture = textureLoader.load('textures/environment/256x256/0000.png');
+  objTexture
+  objective = new THREE.Mesh(
+    new THREE.BoxGeometry(40, 40, 40),
+    new THREE.MeshPhongMaterial({
+      map: textures[0],
+      color: 0xffffff
+    })
+  );
+  scene.add(objective);
+
+  const { x, z } = maze.globalCompass();
+  objective.position.set(x, 0, z);
+
+  finishLight = new THREE.SpotLight(0x003dbf, 10);
+  finishLight.penumbra = 0.2;
+  finishLight.distance = 500;
+  finishLight.castShadow = false;
+
+  finishLight.position.set(x, -20, z);
+  finishLight.target = objective;
+  scene.add(finishLight);
+
+
   let ambientLight = new THREE.AmbientLight(0xcccccc, 0.15);
   scene.add(ambientLight);
-
 
   // let finishLight = new THREE.PointLight(0xffffff, 10, 10, 2);
   // const { x, z } = maze.compass();
@@ -454,6 +487,7 @@ function getY(x, z) {
 function animate() {
   requestAnimationFrame(animate);
   render();
+  minimap.update(controls, camera);
 }
 
 function updateControls() {
@@ -480,15 +514,25 @@ function updateControls() {
       canJump = true;
     }
 
+    const localWidth = maze.localWidth();
+    const localDepth = maze.localDepth();
+
     let oldX = controls.getObject().position.x;
     let oldY = controls.getObject().position.y;
     let oldZ = controls.getObject().position.z;
-    let dx = Math.round((oldX + WORLD_HALF_WIDTH * 100) / 100);
-    let dz = Math.round((oldZ + WORLD_HALF_DEPTH * 100) / 100);
-    let dirs = mazeMatrix[dz][dx];
+    let dx = Math.round((oldX + (localWidth / 2) * 100) / 100);
+    let dz = Math.round((oldZ + (localDepth / 2) * 100) / 100);
+    let dirs;
+
+    try {
+      dirs = mazeMatrix[dz][dx];
+    } catch (err) {
+      dirs = 0;
+    }
+
     stats.innerHTML =
       `x: ${oldX} <br>y:${oldY}<br>z:${oldZ}<br><br>` +
-      `dx: ${dx} <br>dz:${dz}<br>`;
+      `dx: ${dx} <br>dz:${dz}<br>{slot}`;
 
     let boost = 1;
     if (gas > 0) {
@@ -505,27 +549,29 @@ function updateControls() {
     let collisionE = false;
 
     if (!(dirs & N)) {
-      collisionN = controls.getObject().position.z <= (dz * 100 - (WORLD_HALF_DEPTH * 100) - 40);
+      collisionN = controls.getObject().position.z <= (dz * 100 - (localDepth / 2 * 100) - 40);
     }
 
     if (!(dirs & S)) {
-      collisionS = controls.getObject().position.z >= (dz * 100 - (WORLD_HALF_DEPTH * 100) + 40);
+      collisionS = controls.getObject().position.z >= (dz * 100 - (localDepth / 2 * 100) + 40);
     }
 
     if (!(dirs & E)) {
-      collisionE = controls.getObject().position.x >= (dx * 100 - (WORLD_HALF_WIDTH * 100) + 40);
+      collisionE = controls.getObject().position.x >= (dx * 100 - (localWidth / 2 * 100) + 40);
     }
 
     if (!(dirs & W)) {
-      collisionW = controls.getObject().position.x <= (dx * 100 - (WORLD_HALF_WIDTH * 100) - 40);
+      collisionW = controls.getObject().position.x <= (dx * 100 - (localWidth / 2 * 100) - 40);
     }
 
-    if (collisionN || collisionS) {
-      controls.getObject().position.z = oldZ;
-    }
+    if (!godMode) {
+      if (collisionN || collisionS) {
+        controls.getObject().position.z = oldZ;
+      }
 
-    if (collisionE || collisionW) {
-      controls.getObject().position.x = oldX;
+      if (collisionE || collisionW) {
+        controls.getObject().position.x = oldX;
+      }
     }
 
     if (controls.getObject().position.y < minHeight) {
@@ -588,6 +634,10 @@ function render() {
     lamp.decay = 1;
   }
 
+  objective.rotation.x += 0.005;
+  objective.rotation.y += 0.005
+
+
   inventory.innerHTML = inventoryText;
   renderer.render(scene, camera);
 }
@@ -596,23 +646,31 @@ function teleport(i, j) {
   // Find a random location as initial starting point
   i = i || 0;
   j = j || 0;
-  while (!mazeMatrix[j][i]) {
-    i = Math.round(Math.random() * (WORLD_WIDTH - 1));
-    j = Math.round(Math.random() * (WORLD_DEPTH - 1));
-  };
 
-  controls.getObject().position.x = (i * 100) - WORLD_HALF_WIDTH * 100;
-  controls.getObject().position.z = (j * 100) - WORLD_HALF_DEPTH * 100;
+  const localWidth = maze.localWidth();
+  const localDepth = maze.localDepth();
+  try {
+    while (!godMode && !mazeMatrix[j][i]) {
+      i = Math.round(Math.random() * (localWidth - 1));
+      j = Math.round(Math.random() * (localDepth - 1));
+    };
+  } catch (err) {
+    console.log('error', i, j, err);
+  }
+
+  controls.getObject().position.x = (i * 100) - localWidth / 2 * 100;
+  controls.getObject().position.y = 50;
+  controls.getObject().position.z = (j * 100) - localDepth / 2 * 100;
 }
 
 function home() {
-  const { x, z } = maze.compass();
+  const { x, z } = maze.globalCompass();
   controls.getObject().position.set(
-    x * 100 - WORLD_HALF_WIDTH * 100,
+    x,
     10,
-    z * 100 - WORLD_HALF_DEPTH * 100,
+    z,
   )
 }
 
-init();
+init()
 animate();

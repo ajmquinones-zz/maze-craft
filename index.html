@@ -8,6 +8,7 @@
   <script src="src/Detector.js"></script>
   <script src="src/MinHeap.js"></script>
   <script src="src/Maze.js"></script>
+  <script src="src/Minimap.js"></script>
   <script src="src/Util.js"></script>
   <script src="src/PointerLockControls.js"></script>
   <style type="text/css">
@@ -79,6 +80,31 @@
       text-align: center;
       cursor: pointer;
     }
+
+    #minimap {
+      position: absolute;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      left: 10px;
+      top: 10px;
+      width: 200px;
+      height: 200px;
+      overflow: hidden;
+    }
+
+    #minimap>canvas {
+      opacity: 0.3;
+    }
+
+    #minimap-canvas {
+      position: absolute;
+      right: 10px;
+      bottom: 10px;
+    }
+
+    .hide {
+      display: none!important;
+    }
   </style>
 </head>
 
@@ -108,6 +134,9 @@
 
   </div>
   <div id="container"></div>
+
+  <div id="minimap"></div>
+  <canvas id="minimap-canvas" class="hide"></canvas>
 
   <script src="src/script.js"></script>
 </body>
